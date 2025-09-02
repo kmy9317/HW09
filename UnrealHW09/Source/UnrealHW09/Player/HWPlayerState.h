@@ -21,9 +21,13 @@ public:
 
 	FString GetPlayerInfoString();
 public:
-	int32 GetCurrentGuessCount() const { return CurrentGuessCount; }
-	int32 GetMaxGuessCount() const { return MaxGuessCount; }
 	void SetCurrentGuessCount(const int32 InCurrentGuessCount) { CurrentGuessCount = InCurrentGuessCount; }
+	int32 GetCurrentGuessCount() const { return CurrentGuessCount; }
+	
+	int32 GetMaxGuessCount() const { return MaxGuessCount; }
+	
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	FString GetPlayerNameString() const { return PlayerNameString; }
 	
 	UPROPERTY(Replicated)
 	FString PlayerNameString;

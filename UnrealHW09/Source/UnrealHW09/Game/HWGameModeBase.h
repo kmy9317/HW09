@@ -21,6 +21,10 @@ public:
 	
 	virtual void OnPostLogin(AController* NewPlayer) override;
 
+	void StartGame();
+	void ChangePlayerTurn();
+	void CountdownTurnTime();
+
 	FString GenerateSecretNumber();
 
 	bool IsGuessNumberString(const FString& InNumberString);
@@ -35,9 +39,23 @@ public:
 
 	void JudgeGame(AHWPlayerController* InChattingPlayerController, int InStrikeCount);
 
+	bool CheckForDrawCondition();
+
+	void EndRoundAndRestart(const FString& RoundEndMessage);
+
 protected:
 
 	FString SecretNumberString;
 
 	TArray<TObjectPtr<AHWPlayerController>> AllPlayerControllers;
+
+	UPROPERTY(EditDefaultsOnly, Category = "GameRule")
+	float TurnTimeLimit = 10.0f; 
+
+	UPROPERTY(EditDefaultsOnly, Category = "GameRule")
+	int32 NumPlayersToStart = 2; 
+	
+	int32 CurrentPlayerTurnIndex;
+	
+	FTimerHandle TurnTimerHandle;
 };

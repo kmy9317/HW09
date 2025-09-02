@@ -4,7 +4,16 @@
 #include "HWGameStateBase.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "Net/UnrealNetwork.h"
 #include "Player/HWPlayerController.h"
+
+void AHWGameStateBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(ThisClass, CurrentTurnPlayerState);
+	DOREPLIFETIME(ThisClass, TurnRemainingTime);
+}
 
 void AHWGameStateBase::MulticastRPCBroadcastLoginMessage_Implementation(const FString& InNameString)
 {
@@ -22,3 +31,4 @@ void AHWGameStateBase::MulticastRPCBroadcastLoginMessage_Implementation(const FS
 		}
 	}
 }
+

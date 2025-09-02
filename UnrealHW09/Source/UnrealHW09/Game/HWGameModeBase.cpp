@@ -13,6 +13,7 @@ void AHWGameModeBase::BeginPlay()
 	Super::BeginPlay();
 
 	SecretNumberString = GenerateSecretNumber();
+
 }
 
 void AHWGameModeBase::OnPostLogin(AController* NewPlayer)
@@ -36,6 +37,73 @@ void AHWGameModeBase::OnPostLogin(AController* NewPlayer)
 		if (IsValid(HWGameStateBase) == true)
 		{
 			HWGameStateBase->MulticastRPCBroadcastLoginMessage(HWPS->PlayerNameString);
+		}
+
+		if (AllPlayerControllers.Num() >= NumPlayersToStart)
+		{
+			StartGame();
+		}
+	}
+}
+
+void AHWGameModeBase::StartGame()
+{
+	CurrentPlayerTurnIndex = -1; 
+	ChangePlayerTurn();
+}
+
+void AHWGameModeBase::ChangePlayerTurn()
+{
+	GetWorld()->GetTimerManager().ClearTimer(TurnTimerHandle);
+	
+	CurrentPlayerTurnIndex = (CurrentPlayerTurnIndex + 1) % AllPlayerControllers.Num();
+
+	AHWPlayerController* CurrentPC = AllPlayerControllers[CurrentPlayerTurnIndex];
+	if (CurrentPC)
+	{
+		AHWPlayerState* CurrentPS = CurrentPC->GetPlayerState<AHWPlayerState>();
+		AHWGameStateBase* HWGameState = GetGameState<AHWGameStateBase>();
+
+		if (CurrentPS && HWGameState)
+		{
+			HWGameState->CurrentTurnPlayerState = CurrentPS;
+			HWGameState->TurnRemainingTime = TurnTimeLimit;
+
+			GetWorld()->GetTimerManager().SetTimer(TurnTimerHandle, this, &AHWGameModeBase::CountdownTurnTime, 1.0f, true);
+		}
+	}
+}
+
+void AHWGameModeBase::CountdownTurnTime()
+{
+	AHWGameStateBase* HWGameState = GetGameState<AHWGameStateBase>();
+	if (HWGameState && HWGameState->TurnRemainingTime > 0)
+	{
+		HWGameState->TurnRemainingTime -= 1.0f;
+		if (HWGameState->TurnRemainingTime <= 0)
+		{
+			AHWPlayerController* CurrentPC = AllPlayerControllers[CurrentPlayerTurnIndex];
+			AHWPlayerState* CurrentPS = IsValid(CurrentPC) ? CurrentPC->GetPlayerState<AHWPlayerState>() : nullptr;
+
+			if (CurrentPS)
+			{
+				IncreaseGuessCount(CurrentPC);
+
+				FString TimeoutMessage = CurrentPS->GetPlayerInfoString() + TEXT(" ran out of time!");
+				for (TActorIterator<AHWPlayerController> It(GetWorld()); It; ++It)
+				{
+					(*It)->ClientRPCPrintChatMessageString(TimeoutMessage);
+				}
+
+				if (CheckForDrawCondition())
+				{
+					EndRoundAndRestart(TEXT("Draw..."));
+				}
+				else
+				{
+					ChangePlayerTurn();
+				}
+			}
 		}
 	}
 }
@@ -133,10 +201,19 @@ void AHWGameModeBase::PrintChatMessageString(AHWPlayerController* InChattingPlay
 	if (IsGuessNumberString(GuessNumberString) == true)
 	{
 		AHWPlayerState* HWPS = InChattingPlayerController->GetPlayerState<AHWPlayerState>();
-		if (!IsValid(HWPS))
+		AHWGameStateBase* HWGameState = GetGameState<AHWGameStateBase>();
+		if (!IsValid(HWPS) || !IsValid(HWGameState))
 		{
 			return;
 		}
+
+		// 현재 RPC를 요청한 플레이어의 턴이 아닌 경우 return 
+		if (HWPS != HWGameState->CurrentTurnPlayerState)
+		{
+			InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("Your turn is not now."));
+			return;
+		}
+		
 		if (HWPS->GetCurrentGuessCount() >= HWPS->GetMaxGuessCount())
 		{
 			FString NotificationString = TEXT("All guess attempts have been used.");
@@ -149,21 +226,22 @@ void AHWGameModeBase::PrintChatMessageString(AHWPlayerController* InChattingPlay
 		
 		FString PlayerInfoString = HWPS->GetPlayerInfoString(); 
 		FString CombinedMessageString = PlayerInfoString + TEXT(": ") + GuessNumberString + TEXT(" -> ") + JudgeResultString;
-		
+
+		// TODO : AllPlayerControllers 변수 활용
 		for (TActorIterator<AHWPlayerController> It(GetWorld()); It; ++It)
 		{
 			AHWPlayerController* HWPlayerController = *It;
 			if (IsValid(HWPlayerController) == true)
 			{
 				HWPlayerController->ClientRPCPrintChatMessageString(CombinedMessageString);
-
-				int32 StrikeCount = FCString::Atoi(*JudgeResultString.Left(1));
-				JudgeGame(InChattingPlayerController, StrikeCount);
 			}
 		}
+		int32 StrikeCount = FCString::Atoi(*JudgeResultString.Left(1));
+		JudgeGame(InChattingPlayerController, StrikeCount);
 	}
 	else
 	{
+		// TODO : AllPlayerControllers 변수 활용
 		for (TActorIterator<AHWPlayerController> It(GetWorld()); It; ++It)
 		{
 			AHWPlayerController* HWPlayerController = *It;
@@ -203,41 +281,50 @@ void AHWGameModeBase::JudgeGame(AHWPlayerController* InChattingPlayerController,
 	if (3 == InStrikeCount)
 	{
 		AHWPlayerState* HWPS = InChattingPlayerController->GetPlayerState<AHWPlayerState>();
-		for (const auto& HWPlayerController : AllPlayerControllers)
+		if (IsValid(HWPS))
 		{
-			if (IsValid(HWPS) == true)
-			{
-				FString CombinedMessageString = HWPS->PlayerNameString + TEXT(" has won the game.");
-				HWPlayerController->NotificationText = FText::FromString(CombinedMessageString);
-
-				ResetGame();
-			}
+			FString WinMessage = HWPS->PlayerNameString + TEXT(" has won the game.");
+			EndRoundAndRestart(WinMessage);
 		}
 	}
 	else
 	{
-		bool bIsDraw = true;
-		for (const auto& HWPlayerController : AllPlayerControllers)
+		if (CheckForDrawCondition())
 		{
-			AHWPlayerState* HWPS = HWPlayerController->GetPlayerState<AHWPlayerState>();
-			if (IsValid(HWPS) == true)
-			{
-				if (HWPS->GetCurrentGuessCount() < HWPS->GetMaxGuessCount())
-				{
-					bIsDraw = false;
-					break;
-				}
-			}
+			EndRoundAndRestart(TEXT("Draw..."));
 		}
-
-		if (true == bIsDraw)
+		else
 		{
-			for (const auto& HWPlayerController : AllPlayerControllers)
-			{
-				HWPlayerController->NotificationText = FText::FromString(TEXT("Draw..."));
-
-				ResetGame();
-			}
+			ChangePlayerTurn();
 		}
 	}
 }
+
+bool AHWGameModeBase::CheckForDrawCondition()
+{
+	for (const auto& HWPlayerController : AllPlayerControllers)
+	{
+		AHWPlayerState* HWPS = HWPlayerController->GetPlayerState<AHWPlayerState>();
+		if (IsValid(HWPS) && HWPS->GetCurrentGuessCount() < HWPS->GetMaxGuessCount())
+		{
+			return false; 
+		}
+	}
+
+	return true;
+}
+
+void AHWGameModeBase::EndRoundAndRestart(const FString& RoundEndMessage)
+{
+	GetWorld()->GetTimerManager().ClearTimer(TurnTimerHandle);
+
+	for (const auto& HWPlayerController : AllPlayerControllers)
+	{
+		HWPlayerController->NotificationText = FText::FromString(RoundEndMessage);
+	}
+
+	ResetGame();
+
+	StartGame();
+}
+

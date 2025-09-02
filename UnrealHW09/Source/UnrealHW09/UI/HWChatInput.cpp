@@ -40,14 +40,14 @@ void UHWChatInput::OnChatInputTextCommitted(const FText& Text, ETextCommit::Type
 				AHWPlayerState* HWPS = OwningHWPlayerController->GetPlayerState<AHWPlayerState>();
 				
 				// RPC 패킷 전달 부하 최적화 로직 추가
-				if(IsValid(HWPS) && HWPS->GetCurrentGuessCount() >= HWPS->GetMaxGuessCount())
-				{
-					// 횟수를 다 썼으면 로컬에서만 시도 횟수 초과 메시지 출력하도록 함
-					FString NotificationString = TEXT("All guess attempts have been used.");
-					OwningHWPlayerController->PrintChatMessageString(NotificationString);
-					EditableTextBox_ChatInput->SetText(FText()); 
-					return;
-				}
+				// if(IsValid(HWPS) && HWPS->GetCurrentGuessCount() >= HWPS->GetMaxGuessCount())
+				// {
+				// 	// 횟수를 다 썼으면 로컬에서만 시도 횟수 초과 메시지 출력하도록 함
+				// 	FString NotificationString = TEXT("All guess attempts have been used.");
+				// 	OwningHWPlayerController->PrintChatMessageString(NotificationString);
+				// 	EditableTextBox_ChatInput->SetText(FText()); 
+				// 	return;
+				// }
 				
 				OwningHWPlayerController->SetChatMessageString(Text.ToString());
 				EditableTextBox_ChatInput->SetText(FText());
