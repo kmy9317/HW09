@@ -6,6 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "HWGameModeBase.generated.h"
 
+enum class EHWGameStateProgress : uint8;
 class AHWPlayerController;
 
 /**
@@ -20,6 +21,8 @@ public:
 	virtual void BeginPlay() override;
 	
 	virtual void OnPostLogin(AController* NewPlayer) override;
+
+	virtual void Logout(AController* Exiting) override;
 
 	void StartGame();
 	void ChangePlayerTurn();
@@ -43,6 +46,10 @@ public:
 
 	void EndRoundAndRestart(const FString& RoundEndMessage);
 
+	void UpdateGameInfo(EHWGameStateProgress NewState, const FString& InResultMessage = TEXT(""));
+
+	void PrepareNewRound();
+	
 protected:
 
 	FString SecretNumberString;
@@ -58,4 +65,6 @@ protected:
 	int32 CurrentPlayerTurnIndex;
 	
 	FTimerHandle TurnTimerHandle;
+
+	FTimerHandle RestartRoundTimerHandle;
 };

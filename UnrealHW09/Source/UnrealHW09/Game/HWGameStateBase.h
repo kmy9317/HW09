@@ -6,6 +6,33 @@
 #include "GameFramework/GameStateBase.h"
 #include "HWGameStateBase.generated.h"
 
+UENUM(BlueprintType)
+enum class EHWGameStateProgress : uint8
+{
+	WaitingToStart,
+	InProgress,
+	RoundOver
+};
+
+USTRUCT(BlueprintType)
+struct FHWGameInfo
+{
+	GENERATED_BODY()
+
+	FHWGameInfo() : CurrentGameStateProgress(EHWGameStateProgress::WaitingToStart), ResultMessage(TEXT(""))
+	{
+		
+	}
+	
+	UPROPERTY(BlueprintReadOnly)
+	EHWGameStateProgress CurrentGameStateProgress;
+
+	UPROPERTY(BlueprintReadOnly)
+	FString ResultMessage;
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnGameInfoChanged, const FHWGameInfo&, NewGameInfo);
+
 class AHWPlayerState;
 /**
  * 
@@ -26,10 +53,23 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	float GetTurnRemainingTime() const { return TurnRemainingTime; }
+
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	const FHWGameInfo& GetCurrentGameInfo() const { return CurrentGameInfo; }
 	
 	UPROPERTY(Replicated)
 	TObjectPtr<AHWPlayerState> CurrentTurnPlayerState; 
 
 	UPROPERTY(Replicated)
-	float TurnRemainingTime; 
+	float TurnRemainingTime;
+
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentGameInfo)
+	FHWGameInfo CurrentGameInfo;
+
+	UPROPERTY(BlueprintAssignable)
+	FOnGameInfoChanged OnGameInfoChanged;
+
+protected:
+	UFUNCTION()
+	void OnRep_CurrentGameInfo();
 };
