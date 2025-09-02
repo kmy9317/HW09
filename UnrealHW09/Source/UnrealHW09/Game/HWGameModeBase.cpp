@@ -11,9 +11,43 @@
 void AHWGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
-
 	SecretNumberString = GenerateSecretNumber();
 
+	UpdateGameInfo(EHWGameStateProgress::WaitingToStart);
+}
+
+void AHWGameModeBase::PreLogin(const FString& Options, const FString& Address, const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage)
+{
+	Super::PreLogin(Options, Address, UniqueId, ErrorMessage);
+
+	if (!ErrorMessage.IsEmpty())
+	{
+		return;
+	}
+
+	int32 CurrentPlayerCount = 0;
+	for (const auto& PlayerController : AllPlayerControllers)
+	{
+		if (IsValid(PlayerController) && IsValid(PlayerController->GetPawn()))
+		{
+			CurrentPlayerCount++;
+		}
+	}
+
+	if (CurrentPlayerCount >= MaxAllowedPlayers)
+	{
+		ErrorMessage = TEXT("Server is full. Maximum players reached.");
+		UE_LOG(LogTemp, Warning, TEXT("Connection rejected: Server full (%d/%d)"), 
+			   CurrentPlayerCount, MaxAllowedPlayers);
+		return;
+	}
+
+	AHWGameStateBase* HWGameState = GetGameState<AHWGameStateBase>();
+	if (HWGameState && HWGameState->GetCurrentGameInfo().CurrentGameStateProgress == EHWGameStateProgress::InProgress)
+	{
+		ErrorMessage = TEXT("Cannot join. Game is already in progress.");
+		UE_LOG(LogTemp, Warning, TEXT("Connection rejected: Game in progress"));
+	}
 }
 
 void AHWGameModeBase::OnPostLogin(AController* NewPlayer)
@@ -23,8 +57,6 @@ void AHWGameModeBase::OnPostLogin(AController* NewPlayer)
 	AHWPlayerController* HWPlayerController = Cast<AHWPlayerController>(NewPlayer);
 	if (IsValid(HWPlayerController) == true)
 	{
-		HWPlayerController->NotificationText = FText::FromString(TEXT("Connected to the game server."));
-		
 		AllPlayerControllers.Add(HWPlayerController);
 
 		AHWPlayerState* HWPS = HWPlayerController->GetPlayerState<AHWPlayerState>();
@@ -46,9 +78,32 @@ void AHWGameModeBase::OnPostLogin(AController* NewPlayer)
 	}
 }
 
+void AHWGameModeBase::Logout(AController* Exiting)
+{
+	Super::Logout(Exiting);
+	AHWPlayerController* HWPlayerController = Cast<AHWPlayerController>(Exiting);
+	if (HWPlayerController)
+	{
+		bool bWasCurrentTurn = false;
+		if (AllPlayerControllers.IsValidIndex(CurrentPlayerTurnIndex) && AllPlayerControllers[CurrentPlayerTurnIndex] == HWPlayerController)
+		{
+			bWasCurrentTurn = true;
+		}
+
+		AllPlayerControllers.Remove(HWPlayerController);
+
+		if (bWasCurrentTurn && AllPlayerControllers.Num() > 0)
+		{
+			CurrentPlayerTurnIndex--; 
+			ChangePlayerTurn();
+		}
+	}
+}
+
 void AHWGameModeBase::StartGame()
 {
-	CurrentPlayerTurnIndex = -1; 
+	CurrentPlayerTurnIndex = -1;
+	UpdateGameInfo(EHWGameStateProgress::InProgress);
 	ChangePlayerTurn();
 }
 
@@ -90,9 +145,12 @@ void AHWGameModeBase::CountdownTurnTime()
 				IncreaseGuessCount(CurrentPC);
 
 				FString TimeoutMessage = CurrentPS->GetPlayerInfoString() + TEXT(" ran out of time!");
-				for (TActorIterator<AHWPlayerController> It(GetWorld()); It; ++It)
+				for (const auto& PlayerController : AllPlayerControllers)
 				{
-					(*It)->ClientRPCPrintChatMessageString(TimeoutMessage);
+					if (IsValid(PlayerController))
+					{
+						PlayerController->ClientRPCPrintChatMessageString(TimeoutMessage);
+					}
 				}
 
 				if (CheckForDrawCondition())
@@ -227,13 +285,11 @@ void AHWGameModeBase::PrintChatMessageString(AHWPlayerController* InChattingPlay
 		FString PlayerInfoString = HWPS->GetPlayerInfoString(); 
 		FString CombinedMessageString = PlayerInfoString + TEXT(": ") + GuessNumberString + TEXT(" -> ") + JudgeResultString;
 
-		// TODO : AllPlayerControllers 변수 활용
-		for (TActorIterator<AHWPlayerController> It(GetWorld()); It; ++It)
+		for (const auto& Controller : AllPlayerControllers)
 		{
-			AHWPlayerController* HWPlayerController = *It;
-			if (IsValid(HWPlayerController) == true)
+			if (IsValid(Controller))
 			{
-				HWPlayerController->ClientRPCPrintChatMessageString(CombinedMessageString);
+				Controller->ClientRPCPrintChatMessageString(CombinedMessageString);
 			}
 		}
 		int32 StrikeCount = FCString::Atoi(*JudgeResultString.Left(1));
@@ -241,13 +297,11 @@ void AHWGameModeBase::PrintChatMessageString(AHWPlayerController* InChattingPlay
 	}
 	else
 	{
-		// TODO : AllPlayerControllers 변수 활용
-		for (TActorIterator<AHWPlayerController> It(GetWorld()); It; ++It)
+		for (const auto& Controller : AllPlayerControllers)
 		{
-			AHWPlayerController* HWPlayerController = *It;
-			if (IsValid(HWPlayerController) == true)
+			if (IsValid(Controller))
 			{
-				HWPlayerController->ClientRPCPrintChatMessageString(InChatMessageString);
+				Controller->ClientRPCPrintChatMessageString(InChatMessageString);
 			}
 		}
 	}
@@ -317,14 +371,26 @@ bool AHWGameModeBase::CheckForDrawCondition()
 void AHWGameModeBase::EndRoundAndRestart(const FString& RoundEndMessage)
 {
 	GetWorld()->GetTimerManager().ClearTimer(TurnTimerHandle);
+	GetWorld()->GetTimerManager().SetTimer(RestartRoundTimerHandle, this, &AHWGameModeBase::PrepareNewRound, 5.0f, false);
 
-	for (const auto& HWPlayerController : AllPlayerControllers)
+	UpdateGameInfo(EHWGameStateProgress::RoundOver, RoundEndMessage);
+}
+
+void AHWGameModeBase::UpdateGameInfo(EHWGameStateProgress NewState, const FString& InResultMessage)
+{
+	AHWGameStateBase* HWGameState = GetGameState<AHWGameStateBase>();
+	if (HWGameState)
 	{
-		HWPlayerController->NotificationText = FText::FromString(RoundEndMessage);
+		FHWGameInfo TempGameInfo = HWGameState->CurrentGameInfo;
+		TempGameInfo.CurrentGameStateProgress = NewState;
+		TempGameInfo.ResultMessage = InResultMessage;
+		HWGameState->CurrentGameInfo = TempGameInfo;
 	}
+}
 
+void AHWGameModeBase::PrepareNewRound()
+{
 	ResetGame();
-
 	StartGame();
 }
 

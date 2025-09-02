@@ -6,6 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "HWGameModeBase.generated.h"
 
+enum class EHWGameStateProgress : uint8;
 class AHWPlayerController;
 
 /**
@@ -18,8 +19,10 @@ class UNREALHW09_API AHWGameModeBase : public AGameModeBase
 
 public:
 	virtual void BeginPlay() override;
-	
+
+	virtual void PreLogin(const FString& Options, const FString& Address,  const FUniqueNetIdRepl& UniqueId, FString& ErrorMessage) override;
 	virtual void OnPostLogin(AController* NewPlayer) override;
+	virtual void Logout(AController* Exiting) override;
 
 	void StartGame();
 	void ChangePlayerTurn();
@@ -43,6 +46,10 @@ public:
 
 	void EndRoundAndRestart(const FString& RoundEndMessage);
 
+	void UpdateGameInfo(EHWGameStateProgress NewState, const FString& InResultMessage = TEXT(""));
+
+	void PrepareNewRound();
+	
 protected:
 
 	FString SecretNumberString;
@@ -53,9 +60,14 @@ protected:
 	float TurnTimeLimit = 10.0f; 
 
 	UPROPERTY(EditDefaultsOnly, Category = "GameRule")
-	int32 NumPlayersToStart = 2; 
+	int32 NumPlayersToStart = 2;
+
+	UPROPERTY(EditDefaultsOnly, Category = "GameRule")
+	int32 MaxAllowedPlayers = 2;
 	
 	int32 CurrentPlayerTurnIndex;
 	
 	FTimerHandle TurnTimerHandle;
+
+	FTimerHandle RestartRoundTimerHandle;
 };

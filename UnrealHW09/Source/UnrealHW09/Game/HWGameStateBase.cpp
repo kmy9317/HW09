@@ -13,6 +13,12 @@ void AHWGameStateBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 
 	DOREPLIFETIME(ThisClass, CurrentTurnPlayerState);
 	DOREPLIFETIME(ThisClass, TurnRemainingTime);
+	DOREPLIFETIME(ThisClass, CurrentGameInfo);
+}
+
+void AHWGameStateBase::OnRep_CurrentGameInfo()
+{
+	OnGameInfoChanged.Broadcast(CurrentGameInfo);
 }
 
 void AHWGameStateBase::MulticastRPCBroadcastLoginMessage_Implementation(const FString& InNameString)
@@ -31,4 +37,5 @@ void AHWGameStateBase::MulticastRPCBroadcastLoginMessage_Implementation(const FS
 		}
 	}
 }
+
 

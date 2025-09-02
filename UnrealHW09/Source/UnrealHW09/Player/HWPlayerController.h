@@ -44,8 +44,5 @@ protected:
 	
 	UPROPERTY()
 	TObjectPtr<UUserWidget> NotificationTextWidgetInstance;
-
-public:
-	UPROPERTY(Replicated, BlueprintReadOnly)
-	FText NotificationText;
+	
 };

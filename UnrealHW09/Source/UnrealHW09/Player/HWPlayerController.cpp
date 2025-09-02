@@ -5,9 +5,9 @@
 
 #include "HWPlayerState.h"
 #include "UnrealHW09.h"
+#include "Blueprint/WidgetTree.h"
 #include "Game/HWGameModeBase.h"
 #include "Kismet/GameplayStatics.h"
-#include "Net/UnrealNetwork.h"
 #include "UI/HWChatInput.h"
 
 void AHWPlayerController::BeginPlay()
@@ -45,7 +45,6 @@ void AHWPlayerController::GetLifetimeReplicatedProps(TArray<class FLifetimePrope
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
-	DOREPLIFETIME(ThisClass, NotificationText);
 }
 
 void AHWPlayerController::SetChatMessageString(const FString& InChatMessageString)
@@ -72,6 +71,8 @@ void AHWPlayerController::PrintChatMessageString(const FString& InChatMessageStr
 	HWFunctionLibrary::MyPrintString(this, InChatMessageString, 10.f);
 }
 
+
+
 void AHWPlayerController::ClientRPCPrintChatMessageString_Implementation(const FString& InChatMessageString)
 {
 	PrintChatMessageString(InChatMessageString);
@@ -79,15 +80,6 @@ void AHWPlayerController::ClientRPCPrintChatMessageString_Implementation(const F
 
 void AHWPlayerController::ServerRPCPrintChatMessageString_Implementation(const FString& InChatMessageString)
 {
-	// for (TActorIterator<AHWPlayerController> It(GetWorld()); It; ++It)
-	// {
-	// 	AHWPlayerController* HWPlayerController = *It;
-	// 	if (IsValid(CXPlayerController) == true)
-	// 	{
-	// 		HWPlayerController->ClientRPCPrintChatMessageString(InChatMessageString);
-	// 	}
-	// }
-
 	AGameModeBase* GM = UGameplayStatics::GetGameMode(this);
 	if (IsValid(GM) == true)
 	{
@@ -98,3 +90,4 @@ void AHWPlayerController::ServerRPCPrintChatMessageString_Implementation(const F
 		}
 	}
 }
+
