@@ -1,9 +1,11 @@
 📑 프로젝트 개요
+
 언리얼 엔진 5.5의 C++를 사용하여 구현한 데디케이티드 서버(Dedicated Server) 기반의 멀티플레이어 턴제 숫자 야구 게임을 구현한 프로젝트
 채팅을 통해 게임이 진행되며, 서버 권한(Server Authority) 모델에 입각하여 모든 핵심 로직이 서버에서 안전하게 처리됨. 언리얼 엔진의 핵심 네트워크 기능인 
 RPC(Remote Procedure Call)와 변수 복제(Variable Replication)를 깊이 있게 활용하여 안정적인 멀티플레이어 환경을 구축하는 데 중점을 두었음
 
 ✨ 주요 기능
+
 데디케이티드 서버 기반 멀티플레이: 
 모든 게임 로직과 규칙이 별도의 서버 실행 파일에서 동작하여, 모든 클라이언트에게 공정하고 안정적인 게임 환경을 제공
 
@@ -27,6 +29,7 @@ RPC(Remote Procedure Call)와 변수 복제(Variable Replication)를 깊이 있�
 게임 도중 플레이어의 접속이 끊어지면 이를 감지하고 게임이 멈추지 않도록 안전하게 처리. (Logout)
 
 🔄 핵심 로직 흐름
+
 대기 상태 (Waiting)
 서버가 시작되고, GameState는 WaitingToStart 상태가 됨
 플레이어들이 접속하면 GameMode의 AllPlayerControllers 배열에 추가됨
